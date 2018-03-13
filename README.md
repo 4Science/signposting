@@ -1,6 +1,6 @@
 # Signposting plugin
 
-**NOTE: Please ensure you're using the correct branch. Use the [master branch](https://github.com/4Science/signposting/tree/master) for OJS 3.x, and the [ojs-dev-2_4 branch](https://github.com/4Science/signposting/tree/ojs-2_4) for OJS 2.4.x.**
+**NOTE: Please ensure you're using the correct branch. Use the [master branch](https://github.com/4Science/signposting/tree/master) for OJS 3.x, and the [ojs-2_4 branch](https://github.com/4Science/signposting/tree/ojs-2_4) for OJS 2.4.x.**
 
 Plugin to enable the Signposting feature (tested with OJS 3.x)
 
