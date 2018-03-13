@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE locale SYSTEM "../../../../../lib/pkp/dtd/locale.dtd">
+
+<!--
+  * plugins/generic/signposting/locale/en_US/locale.xml
+  *
+  * Copyright (c) 2015-2017 University of Pittsburgh
+  * Copyright (c) 2014-2017 Simon Fraser University Library
+  * Copyright (c) 2003-2017 John Willinsky
+  * Distributed under the GNU GPL v2. For full terms see the file docs/COPYING.
+  *
+  * Contributed by 4Science (http://www.4science.it). 
+  *
+  * Signposting plugin localization strings
+  -->
+
+<locale name="en_US" full_name="U.S. English">
+
+	<message key="plugins.generic.signposting.displayName">Signposting Plugin</message>
+	<message key="plugins.generic.signposting.description"><![CDATA[Signposting patterns implementation (http://signposting.org).]]></message>
+</locale>
