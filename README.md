@@ -2,7 +2,7 @@
 
 **NOTE: Please ensure you're using the correct branch. Use the [master branch](https://github.com/4Science/signposting/tree/master) for OJS 3.x, and the [ojs-dev-2_4 branch](https://github.com/4Science/signposting/tree/ojs-2_4) for OJS 2.4.x.**
 
-Plugin to enable the Signposting feature (tested with OJS 3.x)
+Plugin to enable the Signposting feature (tested with OJS 2.x)
 
 Copyright © 2015-2016 University of Pittsburgh
 <br />Copyright © 2014-2017 Simon Fraser University Library

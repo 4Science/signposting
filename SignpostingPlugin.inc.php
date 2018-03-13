@@ -78,10 +78,10 @@ class SignpostingPlugin extends GenericPlugin {
 	 * @param $op
 	 * @param $sourceFile
 	 */
-	function dispatcher($page, $op) {
-		$request	= Application::getRequest();
-		$articleDao = DAORegistry::getDAO('PublishedArticleDAO');
-		$issueDao	= DAORegistry::getDAO('IssueDAO');
+	function dispatcher($page, $op, $sourceFile) {
+		$request	=& Application::getRequest();
+		$articleDao =& DAORegistry::getDAO('PublishedArticleDAO');
+		$issueDao	=& DAORegistry::getDAO('IssueDAO');
 		$journal	= $request->getJournal();
 		$args		= $request->getRequestedArgs();
 		$returnTrue = false;
@@ -90,13 +90,13 @@ class SignpostingPlugin extends GenericPlugin {
 			$this->import('pages/SignpostingLinksetHandler');
 			define('HANDLER_CLASS', 'SignpostingLinksetHandler');
 			$returnTrue = true;
-			$mode	    = 'linkset';
+			$mode		= 'linkset';
 		} elseif ($op[0] == 'sp-citation') {
 			if ($this->checkCitation($op[1])) {
 				$this->import('pages/SignpostingCitationHandler');
 				define('HANDLER_CLASS', 'SignpostingCitationHandler');
 				$returnTrue = true;
-				$mode	    = 'biblio';
+				$mode		= 'biblio';
 			} else {
 				return false;
 			}
@@ -116,7 +116,7 @@ class SignpostingPlugin extends GenericPlugin {
 			return false;
 		}
 
-		$article = $articleDao->getPublishedArticleByArticleId($args[0]);
+		$article =& $articleDao->getPublishedArticleByArticleId($args[0]);
 		if (empty($article)) return false;
 
 		$headers	= Array();
@@ -133,11 +133,11 @@ class SignpostingPlugin extends GenericPlugin {
 		}
 		if (count($headers) > SIGNPOSTING_MAX_LINKS) {
 			switch ($mode) {
-				case 'article' : $params = $article->getId();
+				case 'article' : $params = $article->getArticleId();
 								 break;
-				case 'boundary': $params = Array($article->getId(), $args[1]);
+				case 'boundary': $params = Array($article->getArticleId(), $args[1]);
 								 break;
-				case 'biblio'  : $params = Array($article->getId(), $op[1]);
+				case 'biblio'  : $params = Array($article->getArticleId(), $op[1]);
 								 break;
 			}
 			$linksetUrl = Request::url(null,
@@ -195,8 +195,8 @@ class SignpostingPlugin extends GenericPlugin {
 	 * @return bool
 	 */
 	function checkBoundary($galleyId) {
-		$articleDao = DAORegistry::getDAO('ArticleGalleyDAO');
-		$galley	 = $articleDao->getById($galleyId);
+		$articleDao =& DAORegistry::getDAO('ArticleGalleyDAO');
+		$galley = $articleDao->getGalley($galleyId);
 		if (!empty($galley)) {
 			return true;
 		}
@@ -261,14 +261,14 @@ class SignpostingPlugin extends GenericPlugin {
 			$rel = 'describedby';
 			$citationFormats = unserialize(SIGNPOSTING_CITATION_FORMATS);
 			foreach ($citationFormats as $format => $mimeType) {
-				$link = Request::url(null, 'sp-citation', $format, $article->getId());
+				$link = Request::url(null, 'sp-citation', $format, $article->getArticleId());
 				$headers[] = Array('value' => $link,
 								   'rel'   => $rel,
 								   'type'  => $mimeType);
 			}
 		} else {
 			$rel  = 'describes';
-			$link = Request::url(null, 'article', 'view', $article->getId());
+			$link = Request::url(null, 'article', 'view', $article->getArticleId());
 			$headers[] = Array('value' => $link,
 							   'rel'   => $rel);
 		}
@@ -281,7 +281,7 @@ class SignpostingPlugin extends GenericPlugin {
 	 * @param object $article
 	 */
 	function _identifierPattern(&$headers, $journal, $article) {
-		$pubIdPlugins = PluginRegistry::loadCategory('pubIds', true);
+		$pubIdPlugins =& PluginRegistry::loadCategory('pubIds', true);
 		foreach ($pubIdPlugins as $pubIdPlugin) {
 			$pubId = $pubIdPlugin->getPubId($article);
 			if (!empty($pubId)) {
@@ -304,7 +304,7 @@ class SignpostingPlugin extends GenericPlugin {
 			$rel = 'item';
 			foreach ($article->getGalleys() as $galley) {
 				$link = Request::url(null, 'article', 'download',
-									 Array($article->getId(),
+									 Array($article->getArticleId(),
 										   $galley->getBestGalleyId($journal)));
 				$mimeType = $galley->getFileType();
 				$headers[] = Array('value' => $link,
@@ -313,7 +313,7 @@ class SignpostingPlugin extends GenericPlugin {
 			}
 		} else {
 			$rel  = 'collection';
-			$link = Request::url(null, 'article', 'view', $article->getId());
+			$link = Request::url(null, 'article', 'view', $article->getArticleId());
 			$headers[] = Array('value' => $link,
 							   'rel'   => $rel);
 		}

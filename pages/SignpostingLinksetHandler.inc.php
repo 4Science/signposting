@@ -25,7 +25,7 @@ class SignpostingLinksetHandler extends Handler {
 	 * @param $args array
 	 * @param $request Request
 	 */
-	function article($args, $request) {
+	function article($args, &$request) {
 		$this->_outputLinkset($args, $request, 'article');
 	}
 
@@ -34,7 +34,7 @@ class SignpostingLinksetHandler extends Handler {
 	 * @param $args array
 	 * @param $request Request
 	 */
-	function boundary($args, $request) {
+	function boundary($args, &$request) {
 		$this->_outputLinkset($args, $request, 'boundary');
 	}
 
@@ -43,7 +43,7 @@ class SignpostingLinksetHandler extends Handler {
 	 * @param $args array
 	 * @param $request Request
 	 */
-	function biblio($args, $request) {
+	function biblio($args, &$request) {
 		$this->_outputLinkset($args, $request, 'biblio');
 	}
 
@@ -53,15 +53,15 @@ class SignpostingLinksetHandler extends Handler {
 	 * @param $request Request
 	 * @param $mode string
 	 */
-	function _outputLinkset($args, $request, $mode) {
-		$headers	= Array();
-		$articleDao = DAORegistry::getDAO('PublishedArticleDAO');
-		$issueDao	= DAORegistry::getDAO('IssueDAO');
-		$journal	= $request->getJournal();
-		$article	= $articleDao->getPublishedArticleByArticleId($args[0]);
+	function _outputLinkset($args, &$request, $mode) {
+		$headers	=  Array();
+		$articleDao =& DAORegistry::getDAO('PublishedArticleDAO');
+		$issueDao	=& DAORegistry::getDAO('IssueDAO');
+		$journal	=& $request->getJournal();
+		$article	=& $articleDao->getPublishedArticleByArticleId($args[0]);
 		if (empty($article)) return false;
-		$plugin     = PluginRegistry::getPlugin('generic', 'signpostingplugin');
-		$articleId  = $article->getId();
+		$plugin =& PluginRegistry::getPlugin('generic', 'signpostingplugin');
+		$articleId  =  $article->getArticleId();
 		switch ($mode) {
 			case 'article' : $anchor = Request::url(null, 'article', 'view', $articleId);
 							 break;
@@ -72,7 +72,7 @@ class SignpostingLinksetHandler extends Handler {
 							 $anchor = Request::url(null, 'sp-citation', $args[1], $articleId);
 							 break;
 		}
-		$modeParams  =  $plugin->getModeParameters($mode);
+		$modeParams = $plugin->getModeParameters($mode);
 		$plugin->buildHeaders(
 							  $headers,
 							  $modeParams['configVarName'],
@@ -94,7 +94,7 @@ class SignpostingLinksetHandler extends Handler {
 	 * @param $plugin object
 	 * @return string
 	 */
-	function _getAnchor($mode, $articleId, $plugin) {
+	function _getAnchor($mode, $articleId, &$plugin) {
 		$output = Array();
 		switch ($mode) {
 			case 'article' : $output = Request::url(null, 'article', 'view', $articleId);
@@ -119,7 +119,7 @@ class SignpostingLinksetHandler extends Handler {
 			$linksetElement = Array(
 									'href'   => $link['value'],
 									'anchor' => $anchor,
-									'rel'    => Array($link['rel'])
+									'rel'	 => Array($link['rel'])
 								   );
 			if (isset($link['type'])) {
 				$linksetElement['type'] = $link['type'];

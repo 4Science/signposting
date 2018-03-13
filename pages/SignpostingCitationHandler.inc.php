@@ -25,7 +25,7 @@ class SignpostingCitationHandler extends Handler {
 	 * @param $args array
 	 * @param $request Request
 	 */
-	function bibtex($args, $request) {
+	function bibtex($args, &$request) {
 		$this->_outputCitation('bibtex', $args, $request);
 	}
 
@@ -34,7 +34,7 @@ class SignpostingCitationHandler extends Handler {
 	 * @param $args array
 	 * @param $request Request
 	 */
-	function endNote($args, $request) {
+	function endNote($args, &$request) {
 		$this->_outputCitation('endNote', $args, $request);
 	}
 
@@ -43,7 +43,7 @@ class SignpostingCitationHandler extends Handler {
 	 * @param $args array
 	 * @param $request Request
 	 */
-	function proCite($args, $request) {
+	function proCite($args, &$request) {
 		$this->_outputCitation('proCite', $args, $request);
 	}
 
@@ -52,7 +52,7 @@ class SignpostingCitationHandler extends Handler {
 	 * @param $args array
 	 * @param $request Request
 	 */
-	function refWorks($args, $request) {
+	function refWorks($args, &$request) {
 		$this->_outputCitation('refWorks', $args, $request);
 	}
 
@@ -61,7 +61,7 @@ class SignpostingCitationHandler extends Handler {
 	 * @param $args array
 	 * @param $request Request
 	 */
-	function refMan($args, $request) {
+	function refMan($args, &$request) {
 		$this->_outputCitation('refMan', $args, $request);
 	}
 
@@ -74,24 +74,25 @@ class SignpostingCitationHandler extends Handler {
 	function _outputCitation($format, $args, &$request) {
 		$citationFormats = unserialize(SIGNPOSTING_CITATION_FORMATS);
 		if (isset($citationFormats[$format])) {
-			$templateMgr = TemplateManager::getManager();
-			$articleDao  = DAORegistry::getDAO('PublishedArticleDAO');
-			$issueDao	 = DAORegistry::getDAO('IssueDAO');
-			$journal	 = $request->getJournal();
-			$article	 = $articleDao->getPublishedArticleByArticleId($args[0]);
+			$templateMgr =& TemplateManager::getManager();
+			$articleDao  =& DAORegistry::getDAO('PublishedArticleDAO');
+			$issueDao	 =& DAORegistry::getDAO('IssueDAO');
+			$journal	 =& $request->getJournal();
+			$article	 =& $articleDao->getPublishedArticleByArticleId($args[0]);
 			if (empty($article)) return false;
-			$issue	   = $issueDao->getIssueByArticleId($article->getId());
-			$outputExtensions = Array('bibtex'   => 'bib',
-									  'refWorks' => 'txt',
-									  'endNote'  => 'enw',
-									  'proCite'  => 'ris',
-									  'refMan'   => 'ris');
-			$plugin = PluginRegistry::loadPlugin('citationFormats', $format);
-			$templateMgr->assign('articleId' , $article->getId());
-			$templateMgr->assign('articleUrl', Request::url(null, 'article', 'view', $article->getId()));
-			header('Content-Disposition: attachment; filename="' . $article->getId() . '-'.$format.'.'.$outputExtensions[$format].'"');
-			header('Content-Type: '.$citationFormats[$format]);
-			echo html_entity_decode(strip_tags($plugin->fetchCitation($article, $issue, $journal)), ENT_QUOTES, 'UTF-8');
+			$issue =& $issueDao->getIssueByArticleId($article->getArticleId());
+			$outputExceptions = Array('bibtex'   => 'bib',
+									  'refWorks' => 'txt');
+			$plugin =& PluginRegistry::loadPlugin('citationFormats', $format);
+			$templateMgr->assign('articleId' , $article->getArticleId());
+			$templateMgr->assign('articleUrl', Request::url(null, 'article', 'view', $article->getArticleId()));
+			if (isset($outputExceptions[$format])) {
+				header('Content-Disposition: attachment; filename="' . $article->getId() . '-'.$format.'.'.$outputExceptions[$format].'"');
+				header('Content-Type: '.$citationFormats[$format]);
+				echo html_entity_decode(strip_tags($plugin->fetchCitation($article, $issue, $journal)), ENT_QUOTES, 'UTF-8');
+			} else {
+				$plugin->displayCitation($article, $issue, $journal);
+			}
 		}
 	}
 }
