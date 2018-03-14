@@ -22,9 +22,9 @@ define('SIGNPOSTING_CITATION_FORMATS',
 	   serialize(Array(
 					   'bibtex'   => 'application/x-bibtex',
 					   'endNote'  => 'application/x-endnote-refer',
-					   'proCite'  => 'application/x-Research-Info-Systems',
+					   'proCite'  => 'application/x-research-info-systems',
 					   'refWorks' => 'application/x-refworks',
-					   'refMan'   => 'application/x-Research-Info-Systems'
+					   'refMan'   => 'application/x-research-info-systems'
 				 )
 	   )
 );
@@ -78,13 +78,14 @@ class SignpostingPlugin extends GenericPlugin {
 	 * @param $op
 	 * @param $sourceFile
 	 */
-	function dispatcher($page, $op, $sourceFile) {
+	function dispatcher($page, $op, $sourceFile = null) {
 		$request	=& Application::getRequest();
 		$articleDao =& DAORegistry::getDAO('PublishedArticleDAO');
 		$issueDao	=& DAORegistry::getDAO('IssueDAO');
 		$journal	= $request->getJournal();
 		$args		= $request->getRequestedArgs();
 		$returnTrue = false;
+		$returnHead = false;
 		$mode		= false;
 		if ($op[0] == 'sp-linkset') {
 			$this->import('pages/SignpostingLinksetHandler');
@@ -103,8 +104,9 @@ class SignpostingPlugin extends GenericPlugin {
 		} elseif ($op[0] == 'article' && $op[1] == 'view' && count($args) < 2) {
 			$mode = 'article';
 			// Intercept HEAD call
+			// NB: Pagespeed issue prevent headers to be displayed on HEAD call
 			if($_SERVER['REQUEST_METHOD'] == 'HEAD'){
-				$returnTrue = true;
+				$returnHead = true;
 			}
 		} elseif ($op[0] == 'article' && $op[1] == 'download') {
 			if ($this->checkBoundary($args[1])) {
@@ -152,6 +154,8 @@ class SignpostingPlugin extends GenericPlugin {
 		$this->_outputHeaders($headers);
 		if ($returnTrue) {
 			return true;
+		} elseif ($returnHead) {
+			return false;
 		}
 	}
 
@@ -219,6 +223,7 @@ class SignpostingPlugin extends GenericPlugin {
 					 break;
 				case 'bibliographic metadata':
 					 $this->_bibliographicMetadataPattern($headers,
+														  $journal,
 														  $article,
 														  $patternMode);
 					 break;
@@ -256,7 +261,7 @@ class SignpostingPlugin extends GenericPlugin {
 	 * @param object $article
 	 * @param string $mode
 	 */
-	function _bibliographicMetadataPattern(&$headers, $article, $mode) {
+	function _bibliographicMetadataPattern(&$headers, $journal, $article, $mode) {
 		if ($mode == 'toItem') {
 			$rel = 'describedby';
 			$citationFormats = unserialize(SIGNPOSTING_CITATION_FORMATS);
@@ -265,6 +270,13 @@ class SignpostingPlugin extends GenericPlugin {
 				$headers[] = Array('value' => $link,
 								   'rel'   => $rel,
 								   'type'  => $mimeType);
+			}
+			$pubIdPlugin =& PluginRegistry::loadPlugin('pubIds', 'doi');
+			$pubId = $pubIdPlugin->getPubId($article);
+			if (!empty($pubId)) {
+				$headers[] = Array('value' => $pubIdPlugin->getResolvingURL($journal->getId(), $pubId),
+								   'rel'   => $rel,
+								   'type'  => 'application/vnd.citationstyles.csl+json');
 			}
 		} else {
 			$rel  = 'describes';
