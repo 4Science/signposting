@@ -1,6 +1,6 @@
 # Signposting plugin
 
-**NOTE: Please ensure you're using the correct branch. Use the [master branch](https://github.com/4Science/signposting/tree/master) for OJS 3.x, and the [ojs-2_4 branch](https://github.com/4Science/signposting/tree/ojs-2_4) for OJS 2.4.x.**
+**NOTE: Please ensure you're using the correct branch. Use the [master branch](https://github.com/asmecher/signposting/tree/master) for OJS 3.x, and the [ojs-dev-2_4 branch](https://github.com/asmecher/signposting/tree/ojs-dev-2_4) for OJS 2.4.x.**
 
 Plugin to enable the Signposting feature (tested with OJS 3.x)
 
@@ -10,7 +10,7 @@ Copyright © 2015-2016 University of Pittsburgh
 
 Licensed under GPL 2 or better.
 
-Contributed by 4Science (http://www.4science.it).
+Contributed by 4Science (https://www.4science.it).
 
 ## Features:
 
@@ -22,8 +22,10 @@ Implements the following Signposting ([http://signposting.org](http://signpostin
 
 ## Requirements:
 To be able to use the Author pattern the following plugin is required:
- * orcidProfile: downloadable at [https://github.com/4Science/orcidProfile](https://github.com/4Science/orcidProfile)
-
+ * ORCID Profile: downloadable at [https://github.com/pkp/orcidProfile](https://github.com/pkp/orcidProfile)
+To be able to use the Bibliographic Metadata Pattern the following plugin is required:
+ * Citation Style Language: downloadable at [https://github.com/pkp/citationStyleLanguage](https://github.com/pkp/citationStyleLanguage)
+ 
 ## Install:
 
  * Copy the source into the PKP product's plugins/generic folder.

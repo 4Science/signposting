@@ -25,7 +25,7 @@ class SignpostingLinksetHandler extends Handler {
 	 * @param $args array
 	 * @param $request Request
 	 */
-	function article($args, $request) {
+	public function article($args, $request) {
 		$this->_outputLinkset($args, $request, 'article');
 	}
 
@@ -34,7 +34,7 @@ class SignpostingLinksetHandler extends Handler {
 	 * @param $args array
 	 * @param $request Request
 	 */
-	function boundary($args, $request) {
+	public function boundary($args, $request) {
 		$this->_outputLinkset($args, $request, 'boundary');
 	}
 
@@ -43,7 +43,7 @@ class SignpostingLinksetHandler extends Handler {
 	 * @param $args array
 	 * @param $request Request
 	 */
-	function biblio($args, $request) {
+	public function biblio($args, $request) {
 		$this->_outputLinkset($args, $request, 'biblio');
 	}
 
@@ -53,23 +53,24 @@ class SignpostingLinksetHandler extends Handler {
 	 * @param $request Request
 	 * @param $mode string
 	 */
-	function _outputLinkset($args, $request, $mode) {
+	protected function _outputLinkset($args, $request, $mode) {
 		$headers	= Array();
-		$articleDao = DAORegistry::getDAO('PublishedArticleDAO');
+		$request = Application::getRequest();
+		$articleDao = DAORegistry::getDAO('SubmissionDAO');
 		$issueDao	= DAORegistry::getDAO('IssueDAO');
 		$journal	= $request->getJournal();
-		$article	= $articleDao->getPublishedArticleByArticleId($args[0]);
+		$article	= $articleDao->getById($args[0]);
 		if (empty($article)) return false;
 		$plugin     = PluginRegistry::getPlugin('generic', 'signpostingplugin');
 		$articleId  = $article->getId();
 		switch ($mode) {
-			case 'article' : $anchor = Request::url(null, 'article', 'view', $articleId);
+			case 'article' : $anchor = $request->url(null, 'article', 'view', $articleId);
 							 break;
-			case 'boundary': if (!$plugin->checkBoundary($args[1])) return false;
-							 $anchor = Request::url(null, 'article', 'download', Array($articleId, $args[1]));
+			case 'boundary': if (!$plugin->checkBoundary($args[0])) return false;
+							 $anchor = $request->url(null, 'article', 'download', Array($articleId, $args[0]));
 							 break;
 			case 'biblio'  : if (!$plugin->checkCitation($args[1])) return false;
-							 $anchor = Request::url(null, 'sp-citation', $args[1], $articleId);
+							 $anchor = $request->url(null, 'sp-citation', 'serveCitation', $articleId, Array('format' => $args[1]));
 							 break;
 		}
 		$modeParams  =  $plugin->getModeParameters($mode);
@@ -94,14 +95,15 @@ class SignpostingLinksetHandler extends Handler {
 	 * @param $plugin object
 	 * @return string
 	 */
-	function _getAnchor($mode, $articleId, $plugin) {
+	protected function _getAnchor($mode, $articleId, $plugin) {
 		$output = Array();
+		$request = Application::getRequest();
 		switch ($mode) {
-			case 'article' : $output = Request::url(null, 'article', 'view', $articleId);
+			case 'article' : $output = $request->url(null, 'article', 'view', $articleId);
 							 break;
-			case 'boundary': $output = Request::url(null, 'article', 'view', Array($articleId, $args[1]));
+			case 'boundary': $output = $request->url(null, 'article', 'view', Array($articleId, $args[1]));
 							 break;
-			case 'biblio'  : $output = Request::url(null, 'sp-citation', $args[2], $articleId);
+			case 'biblio'  : $output = $request->url(null, 'sp-citation', $args[2], $articleId);
 							 break;
 		}
 		return $output;
@@ -113,18 +115,19 @@ class SignpostingLinksetHandler extends Handler {
 	 * @param $anchor string
 	 * @return Array
 	 */
-	function _buildLinksetBody($arrayLinks, $anchor) {
-		$output = Array();
+	protected function _buildLinksetBody($arrayLinks, $anchor) {
+		$output = Array('linkset' => Array());
+		$output['linkset']['anchor'] = $anchor;
 		foreach ($arrayLinks as $link) {
-			$linksetElement = Array(
-									'href'   => $link['value'],
-									'anchor' => $anchor,
-									'rel'    => Array($link['rel'])
-								   );
+			$tmpArray = Array();
+            if(!array_key_exists($link['rel'], $output['linkset'])){
+				$output['linkset'][$link['rel']] = Array();
+            }
+            $tmpArray['href'] = $link['value'];
 			if (isset($link['type'])) {
-				$linksetElement['type'] = $link['type'];
+				$tmpArray['type'] = $link['type'];
 			}
-			$output[] = $linksetElement;
+            $output['linkset'][$link['rel']][] = $tmpArray;
 		}
 		return $output;
 	}

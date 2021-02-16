@@ -20,49 +20,21 @@ import('classes.handler.Handler');
 
 class SignpostingCitationHandler extends Handler {
 
+	protected $_citationFormats   = Array();
+	
 	/**
-	 * Bibtex citation handler
+	 * Citation handler method
 	 * @param $args array
 	 * @param $request Request
 	 */
-	function bibtex($args, $request) {
-		$this->_outputCitation('bibtex', $args, $request);
-	}
-
-	/**
-	 * EndNote citation handler
-	 * @param $args array
-	 * @param $request Request
-	 */
-	function endNote($args, $request) {
-		$this->_outputCitation('endNote', $args, $request);
-	}
-
-	/**
-	 * ProCite citation handler
-	 * @param $args array
-	 * @param $request Request
-	 */
-	function proCite($args, $request) {
-		$this->_outputCitation('proCite', $args, $request);
-	}
-
-	/**
-	 * RefWorks citation handler
-	 * @param $args array
-	 * @param $request Request
-	 */
-	function refWorks($args, $request) {
-		$this->_outputCitation('refWorks', $args, $request);
-	}
-
-	/**
-	 * RefMan citation handler
-	 * @param $args array
-	 * @param $request Request
-	 */
-	function refMan($args, $request) {
-		$this->_outputCitation('refMan', $args, $request);
+	public function serveCitation($args, $request) {
+		$citationFormats = $this->_getCitationFormats();
+		$params = $request->getQueryArray();
+		// 'format' existence already checked in 'SignpostingPlugin.inc.php'
+		// 'dispatcher' method
+		if(array_key_exists($params['format'], $citationFormats)){
+			$this->_outputCitation($params['format'], $args, $request);
+		}
 	}
 
 	/**
@@ -71,27 +43,59 @@ class SignpostingCitationHandler extends Handler {
 	 * @param $args array
 	 * @param $request Request
 	 */
-	function _outputCitation($format, $args, &$request) {
-		$citationFormats = unserialize(SIGNPOSTING_CITATION_FORMATS);
+	protected function _outputCitation($format, $args, &$request) {
+		$citationFormats = $this->_getCitationFormats();
 		if (isset($citationFormats[$format])) {
 			$templateMgr = TemplateManager::getManager();
-			$articleDao  = DAORegistry::getDAO('PublishedArticleDAO');
+			$request = Application::getRequest();
+			$articleDao  = DAORegistry::getDAO('SubmissionDAO');
 			$issueDao	 = DAORegistry::getDAO('IssueDAO');
 			$journal	 = $request->getJournal();
-			$article	 = $articleDao->getPublishedArticleByArticleId($args[0]);
+			$article	 = $articleDao->getById($args[0]);
 			if (empty($article)) return false;
-			$issue	   = $issueDao->getIssueByArticleId($article->getId());
-			$outputExtensions = Array('bibtex'   => 'bib',
-									  'refWorks' => 'txt',
-									  'endNote'  => 'enw',
-									  'proCite'  => 'ris',
-									  'refMan'   => 'ris');
-			$plugin = PluginRegistry::loadPlugin('citationFormats', $format);
+			$issue	     = $issueDao->getBySubmissionId($article->getId());
+			$plugin      = PluginRegistry::loadPlugin('generic', 'citationStyleLanguage');
 			$templateMgr->assign('articleId' , $article->getId());
-			$templateMgr->assign('articleUrl', Request::url(null, 'article', 'view', $article->getId()));
-			header('Content-Disposition: attachment; filename="' . $article->getId() . '-'.$format.'.'.$outputExtensions[$format].'"');
-			header('Content-Type: '.$citationFormats[$format]);
-			echo html_entity_decode(strip_tags($plugin->fetchCitation($article, $issue, $journal)), ENT_QUOTES, 'UTF-8');
+			$templateMgr->assign('articleUrl', $request->url(null, 'article', 'view', $article->getId()));
+			$filename    = substr(preg_replace('/[^a-zA-Z0-9_.-]/', '', str_replace(' ', '-', $article->getLocalizedTitle())), 0, 60);
+			$citationString = trim(strip_tags($plugin->getCitation($request, $article, $format, $issue)));
+			$citationString = str_replace('\n', "\n", $citationString);
+			header('Content-Disposition: attachment; filename="' . $filename . '.' . $format . '.' . $citationFormats[$format]['fileExtension'] . '"');
+			header('Content-Type: '.$citationFormats[$format]['contentType']);
+			//old implementation
+			//echo trim(html_entity_decode(strip_tags($plugin->getCitation($request, $article, $format, $issue)), ENT_QUOTES, 'UTF-8'));
+			echo $citationString;
 		}
+	}
+	
+	/**
+	 * Get Citation formats from 'citationStyleLanguage' Plugin
+	 * 
+	 */
+	protected function _getCitationFormats() {
+		if(count($this->_citationFormats) < 1){
+			// The DOI plugin is loaded to register the hook: 'CitationStyleLanguage::citation'
+			// Used by 'citationStyleLanguage' Plugin
+			$doi    = PluginRegistry::loadPlugin('pubIds' , 'doi');
+			$plugin = PluginRegistry::loadPlugin('generic', 'citationStyleLanguage');
+			if(!empty($plugin)){
+				$citationStyles = $plugin->getEnabledCitationStyles();
+				$citationDwn = $plugin->getEnabledCitationDownloads();
+				$citationFormats = array_merge($citationStyles, $citationDwn);
+				foreach($citationFormats as $citationFormat){
+					if(array_key_exists('contentType', $citationFormat)){
+						$fileExt = $citationFormat['fileExtension'];
+						$cntType = $citationFormat['contentType'];
+					}else{
+						$fileExt = 'txt';
+						$cntType = 'text/plain';
+					}
+					$this->_citationFormats[$citationFormat['id']] = Array(
+						'fileExtension' => $fileExt, 
+						'contentType'   => $cntType);
+				}
+			}
+		}
+		return $this->_citationFormats;
 	}
 }

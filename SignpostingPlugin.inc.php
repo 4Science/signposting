@@ -16,18 +16,10 @@
  * @brief Signposting plugin class
  */
 
+// Linkset URL example:
+// https://<hostname>/<journal-url/sp-linkset/article/11176
+ 
 import('lib.pkp.classes.plugins.GenericPlugin');
-
-define('SIGNPOSTING_CITATION_FORMATS', 
-	   serialize(Array(
-					   'bibtex'   => 'application/x-bibtex',
-					   'endNote'  => 'application/x-endnote-refer',
-					   'proCite'  => 'application/x-Research-Info-Systems',
-					   'refWorks' => 'application/x-refworks',
-					   'refMan'   => 'application/x-Research-Info-Systems'
-				 )
-	   )
-);
 
 define('SIGNPOSTING_MAX_LINKS', 10);
 
@@ -41,6 +33,8 @@ class SignpostingPlugin extends GenericPlugin {
 	protected $_biblioConfig	  = Array('bibliographic metadata');
 
 	protected $_boundariesConfig  = Array('publication boundary');
+	
+	protected $_citationFormats   = Array();
 
 	/**
 	 * Called as a plugin is registered to the registry
@@ -48,12 +42,12 @@ class SignpostingPlugin extends GenericPlugin {
 	 * @return boolean True if plugin initialized successfully; if false,
 	 *  the plugin will not be registered.
 	 */
-	function register($category, $path) {
-		$success = parent::register($category, $path);
+	public function register($category, $path, $mainContextId = null) {
+		$success = parent::register($category, $path, $mainContextId);
 		if (!Config::getVar('general', 'installed') || defined('RUNNING_UPGRADE')) return true;
-		if ($success && $this->getEnabled()) {
+		if ($success && $this->getEnabled($mainContextId)) {
 			// Register callback for the dispatcher
-			HookRegistry::register('LoadHandler', Array(&$this, 'dispatcher'));
+			HookRegistry::register('LoadHandler', Array($this, 'dispatcher'));
 		}
 		return $success;
 	}
@@ -61,14 +55,14 @@ class SignpostingPlugin extends GenericPlugin {
 	/**
 	 * @copydoc Plugin::getDisplayName()
 	 */
-	function getDisplayName() {
+	public function getDisplayName() {
 		return __('plugins.generic.signposting.displayName');
 	}
 
 	/**
 	 * @copydoc Plugin::getDescription()
 	 */
-	function getDescription() {
+	public function getDescription() {
 		return __('plugins.generic.signposting.description');
 	}
 
@@ -78,12 +72,13 @@ class SignpostingPlugin extends GenericPlugin {
 	 * @param $op
 	 * @param $sourceFile
 	 */
-	function dispatcher($page, $op) {
+	public function dispatcher($page, $op) {
 		$request	= Application::getRequest();
-		$articleDao = DAORegistry::getDAO('PublishedArticleDAO');
+		$articleDao = DAORegistry::getDAO('SubmissionDAO');
 		$issueDao	= DAORegistry::getDAO('IssueDAO');
 		$journal	= $request->getJournal();
 		$args		= $request->getRequestedArgs();
+		$params     = $request->getQueryArray();
 		$returnTrue = false;
 		$returnHead = false;
 		$mode		= false;
@@ -93,11 +88,15 @@ class SignpostingPlugin extends GenericPlugin {
 			$returnTrue = true;
 			$mode	    = 'linkset';
 		} elseif ($op[0] == 'sp-citation') {
-			if ($this->checkCitation($op[1])) {
-				$this->import('pages/SignpostingCitationHandler');
-				define('HANDLER_CLASS', 'SignpostingCitationHandler');
-				$returnTrue = true;
-				$mode	    = 'biblio';
+			if(array_key_exists('format', $params)) {
+				if ($this->checkCitation($params['format'])) {
+					$this->import('pages/SignpostingCitationHandler');
+					define('HANDLER_CLASS', 'SignpostingCitationHandler');
+					$returnTrue = true;
+					$mode	    = 'biblio';
+				} else {
+					return false;
+				}
 			} else {
 				return false;
 			}
@@ -108,8 +107,10 @@ class SignpostingPlugin extends GenericPlugin {
 			if($_SERVER['REQUEST_METHOD'] == 'HEAD'){
 				$returnHead = true;
 			}
-		} elseif ($op[0] == 'article' && $op[1] == 'download') {
-			if ($this->checkBoundary($args[1])) {
+		// Changed to include the PDF preview page
+		// } elseif ($op[0] == 'article' && $op[1] == 'download') {
+		} elseif (($op[0] == 'article' && $op[1] == 'download') || ($op[0] == 'article' && $op[1] == 'view' && count($args) < 3)) {
+			if ($this->checkBoundary($args[0])) {
 				$mode = 'boundary';
 			} else {
 				return false;
@@ -117,8 +118,7 @@ class SignpostingPlugin extends GenericPlugin {
 		} else {
 			return false;
 		}
-
-		$article = $articleDao->getPublishedArticleByArticleId($args[0]);
+		$article = $articleDao->getById($args[0]);
 		if (empty($article)) return false;
 
 		$headers	= Array();
@@ -139,10 +139,10 @@ class SignpostingPlugin extends GenericPlugin {
 								 break;
 				case 'boundary': $params = Array($article->getId(), $args[1]);
 								 break;
-				case 'biblio'  : $params = Array($article->getId(), $op[1]);
+				case 'biblio'  : $params = Array($article->getId(), $params['format']);
 								 break;
 			}
-			$linksetUrl = Request::url(null,
+			$linksetUrl = $request->url(null,
 									   'sp-linkset',
 									   $mode,
 									   $params);
@@ -164,7 +164,7 @@ class SignpostingPlugin extends GenericPlugin {
 	 * @param $mode
 	 * @return Array
 	 */
-	function getModeParameters($mode) {
+	public function getModeParameters($mode) {
 		$output = Array();
 		switch ($mode) {
 			case 'article' : $output = Array('configVarName' => '_landingPageConfig',
@@ -185,8 +185,8 @@ class SignpostingPlugin extends GenericPlugin {
 	 * @param $citation
 	 * @return bool
 	 */
-	function checkCitation($citation) {
-		$citationFormats = unserialize(SIGNPOSTING_CITATION_FORMATS);
+	public function checkCitation($citation) {
+		$citationFormats = $this->_getCitationFormats();
 		if (isset($citationFormats[$citation])) {
 			return true;
 		}
@@ -198,7 +198,7 @@ class SignpostingPlugin extends GenericPlugin {
 	 * @param $galleyId
 	 * @return bool
 	 */
-	function checkBoundary($galleyId) {
+	public function checkBoundary($galleyId) {
 		$articleDao = DAORegistry::getDAO('ArticleGalleyDAO');
 		$galley	 = $articleDao->getById($galleyId);
 		if (!empty($galley)) {
@@ -215,7 +215,7 @@ class SignpostingPlugin extends GenericPlugin {
 	 * @param object $journal
 	 * @param object $article
 	 */
-	function buildHeaders(&$headers, $configVarName, $patternMode, $journal, $article) {
+	public function buildHeaders(&$headers, $configVarName, $patternMode, $journal, $article) {
 		foreach ($this->$configVarName as $pattern) {
 			switch ($pattern) {
 				case 'author':
@@ -245,7 +245,7 @@ class SignpostingPlugin extends GenericPlugin {
 	 * @param Array $headers
 	 * @param object $article
 	 */
-	function _authorPattern(&$headers, $article) {
+	protected function _authorPattern(&$headers, $article) {
 		foreach ($article->getAuthors() as $author) {
 			$orcid = $author->getData('orcid');
 			if (!empty($orcid)) {
@@ -261,17 +261,18 @@ class SignpostingPlugin extends GenericPlugin {
 	 * @param object $article
 	 * @param string $mode
 	 */
-	function _bibliographicMetadataPattern(&$headers, $journal, $article, $mode) {
+	protected function _bibliographicMetadataPattern(&$headers, $journal, $article, $mode) {
+		$request = Application::getRequest();
 		if ($mode == 'toItem') {
 			$rel = 'describedby';
-			$citationFormats = unserialize(SIGNPOSTING_CITATION_FORMATS);
+		    $citationFormats = $this->_getCitationFormats();
 			foreach ($citationFormats as $format => $mimeType) {
-				$link = Request::url(null, 'sp-citation', $format, $article->getId());
+				$link = $request->url(null, 'sp-citation', 'serveCitation', $article->getId(), Array('format' => $format));
 				$headers[] = Array('value' => $link,
 								   'rel'   => $rel,
-								   'type'  => $mimeType);
+								   'type'  => $mimeType['contentType']);
 			}
-			$pubIdPlugin =& PluginRegistry::loadPlugin('pubIds', 'doi');
+			$pubIdPlugin = PluginRegistry::loadPlugin('pubIds', 'doi');
 			$pubId = $pubIdPlugin->getPubId($article);
 			if (!empty($pubId)) {
 				$headers[] = Array('value' => $pubIdPlugin->getResolvingURL($journal->getId(), $pubId),
@@ -280,7 +281,7 @@ class SignpostingPlugin extends GenericPlugin {
 			}
 		} else {
 			$rel  = 'describes';
-			$link = Request::url(null, 'article', 'view', $article->getId());
+			$link = $request->url(null, 'article', 'view', $article->getId());
 			$headers[] = Array('value' => $link,
 							   'rel'   => $rel);
 		}
@@ -292,7 +293,7 @@ class SignpostingPlugin extends GenericPlugin {
 	 * @param object $journal
 	 * @param object $article
 	 */
-	function _identifierPattern(&$headers, $journal, $article) {
+	protected function _identifierPattern(&$headers, $journal, $article) {
 		$pubIdPlugins = PluginRegistry::loadCategory('pubIds', true);
 		foreach ($pubIdPlugins as $pubIdPlugin) {
 			$pubId = $pubIdPlugin->getPubId($article);
@@ -310,12 +311,13 @@ class SignpostingPlugin extends GenericPlugin {
 	 * @param object $article
 	 * @param string $mode
 	 */
-	function _publicationBoundary(&$headers, $journal, $article, $mode) {
+	protected function _publicationBoundary(&$headers, $journal, $article, $mode) {
+		$request = Application::getRequest();
 		$articleId = $article->getBestArticleId($journal);
 		if ($mode == 'toItem') {
 			$rel = 'item';
 			foreach ($article->getGalleys() as $galley) {
-				$link = Request::url(null, 'article', 'download',
+				$link = $request->url(null, 'article', 'download',
 									 Array($article->getId(),
 										   $galley->getBestGalleyId($journal)));
 				$mimeType = $galley->getFileType();
@@ -325,19 +327,49 @@ class SignpostingPlugin extends GenericPlugin {
 			}
 		} else {
 			$rel  = 'collection';
-			$link = Request::url(null, 'article', 'view', $article->getId());
+			$link = $request->url(null, 'article', 'view', $article->getId());
 			$headers[] = Array('value' => $link,
 							   'rel'   => $rel);
 		}
+	}
+	
+	/**
+	 * Get Citation formats from 'citationStyleLanguage' Plugin
+	 * 
+	 */
+	protected function _getCitationFormats() {
+		if(count($this->_citationFormats) < 1){
+			// The DOI plugin is loaded to register the hook: 'CitationStyleLanguage::citation'
+			// Used by 'citationStyleLanguage' Plugin
+			$doi    = PluginRegistry::loadPlugin('pubIds' , 'doi');
+			$plugin = PluginRegistry::loadPlugin('generic', 'citationStyleLanguage');
+			if(!empty($plugin)){
+				$citationStyles = $plugin->getEnabledCitationStyles();
+				$citationDwn = $plugin->getEnabledCitationDownloads();
+				$citationFormats = array_merge($citationStyles, $citationDwn);
+				foreach($citationFormats as $citationFormat){
+					if(array_key_exists('contentType', $citationFormat)){
+						$fileExt = $citationFormat['fileExtension'];
+						$cntType = $citationFormat['contentType'];
+					}else{
+						$fileExt = 'txt';
+						$cntType = 'text/plain';
+					}
+					$this->_citationFormats[$citationFormat['id']] = Array(
+						'fileExtension' => $fileExt, 
+						'contentType'   => $cntType);
+				}
+			}
+		}
+		return $this->_citationFormats;
 	}
 
 	/**
 	 * HTTP Headers: formatting and sending
 	 * @param Array $headers
 	 */
-	function _outputHeaders($headers) {
+	protected function _outputHeaders($headers) {
 		if(count($headers) > 0){
-			//$indentation  = '\n	  ';
 			$indentation  = '';
 			$headerString = 'Link: ';
 			$headerArray  = Array();
